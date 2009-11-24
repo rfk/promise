@@ -7,9 +7,9 @@ class TestPromise(unittest.TestCase):
 
     def _timeit(self,modnm,funcnms,funcnm):
         setup = "from promise.tests.%s import verify, %s" % (modnm,funcnms)
-        t = timeit.Timer("verify(%s)" % (funcnm,),setup)
-        print funcnm, min(t.repeat(number=100000))
-        return min(t.repeat(number=100000))
+        ts = timeit.Timer("verify(%s)"%(funcnm,),setup).repeat(number=100000)
+        print funcnm, ts
+        return min(ts)
 
     def _make_test(modnm):
         def test(self):

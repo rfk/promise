@@ -39,8 +39,8 @@ from cStringIO import StringIO
 # Define opcodes and information about them
 
 python_version = '.'.join(str(x) for x in sys.version_info[:2])
-#if python_version not in ('2.4', '2.5'):
-#    warnings.warn('byteplay supports only Python versions 2.4 and 2.5')
+if python_version not in ('2.4', '2.5', '2.6'):
+    warnings.warn('byteplay supports only Python versions 2.4 to 2.6')
 
 class Opcode(int):
     """An int which represents an opcode - has a nicer repr."""
