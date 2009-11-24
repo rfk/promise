@@ -1,3 +1,8 @@
+"""
+
+  promise:  bytecode optimisations based on staticness assertions.
+
+"""
 
 import types
 
@@ -304,11 +309,15 @@ class can_inline(Promise):
         # TODO: this is wrong in so many ways...
         for (i,(op,arg)) in enumerate(code.code):
             if op == LOAD_CONST and arg == func:
-                loadsite = i
-                while i < len(code.code) and code.code[i][0] != CALL_FUNCTION:
-                    i += 1
-                callsite = i
-                return (loadsite,callsite)
+                loadsite = callsite = i
+                # TODO: use stack effects to ensure it's calling this func
+                while callsite < len(code.code) and code.code[callsite][0] != CALL_FUNCTION:
+                    callsite += 1
+                if callsite != len(code.code):
+                    (op,arg) = code.code[callsite]
+                    #  Check that it doesn't use kwdargs
+                    if arg == (arg & 0xFF):
+                        return (loadsite,callsite)
         return None
 
     def _rename_local_vars(self,code):
@@ -327,4 +336,28 @@ class can_inline(Promise):
                 code.code[i] = (op,newarg)
         return name_map
 
+
+class sensible(Promise):
+    """Promise that a function is sensibly behaved.  Basically:
+
+        * all builtins are constant
+        * all global functions are constant
+        * all other globals are invariant
+
+    """
+
+    def decorate(self,func):
+        self.defer(func)
+
+    def apply(self,func,code):
+        callable_globals = set()
+        other_globals = set()
+        for (nm,obj) in func.func_globals.iteritems():
+            if callable(obj):
+                callable_globals.add(nm)
+            else:
+                other_globals.add(nm)
+        constant(__builtins__).apply(func,code)
+        constant(callable_globals).apply(func,code)
+        invariant(other_globals).apply(func,code)
  

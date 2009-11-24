@@ -35,8 +35,9 @@ def finder2(item):
         i += 1
     return False
 
-@promise.constant(["len"])
-@promise.invariant(["items"])
+#@promise.constant(["len"])
+#@promise.invariant(["items"])
+@promise.sensible()
 def finder3(item):
     i = 0
     while i < len(items):
