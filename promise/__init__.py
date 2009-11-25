@@ -204,20 +204,14 @@ class constant(Promise):
     """Promise that the given names are constant
 
     This promise allows the objects referred to by the names to be stored
-    directly in the code as constants, eliminating name lookups.  Currently
-    all constant lookups are deferred until the function is first called;
-    at some stage we may directly inline constants that can be found at
-    decoration time.
+    directly in the code as constants, eliminating name lookups.  We try
+    to resolve all constants at decoration time, but any that are missing
+    will be deferred until the function first executes.
     """
 
     def __init__(self,names):
         self.names = names
         super(constant,self).__init__()
-
-    def decorate(self,func):
-        #  Delay constant lookup until execution time.
-        #  This lets us forward-declare constants such as other module funcs.
-        self.defer(func)
 
     def _load_name(self,func,nm,op=None):
         """Look up the given name in the scope of the given function.
@@ -237,20 +231,33 @@ class constant(Promise):
         except KeyError:
             raise NameError(nm)
 
+    def decorate(self,func):
+        try:
+            self.apply_or_defer(func)
+        except NameError:
+            self.defer(func)
+
     def apply(self,func,code):
-        constant_map = {}
-        constants = []
+        new_constants = {}
+        old_constants = set()
+        missing_names = []
         for (i,(op,arg)) in enumerate(code.code):
             #  Replace LOADs of matching names with LOAD_CONST
             if op in (LOAD_GLOBAL,):
-                if arg in self.names:
+                if arg in self.names and arg not in missing_names:
                     try:
-                        val = constant_map[arg]
+                        val = new_constants[arg]
                     except KeyError:
-                        val = self._load_name(func,arg,op)
-                        constant_map[arg] = val
-                        constants.append(val)
-                    code.code[i] = (LOAD_CONST,val)
+                        try:
+                            val = self._load_name(func,arg,op)
+                        except NameError:
+                            missing_names.append(arg)
+                        else:
+                            new_constants[arg] = val
+                            code.code[i] = (LOAD_CONST,val)
+                    else:
+                        code.code[i] = (LOAD_CONST,val)
+            #  Error out for unsupported load types, for now...
             elif op in (LOAD_NAME,LOAD_DEREF,LOAD_FAST):
                 if arg in self.names:
                     raise TypeError("sorry, only global constants are currently supported [%s]" % (arg,))
@@ -264,17 +271,27 @@ class constant(Promise):
                     msg = "name '%s' was promised constant, but deleted"
                     raise BrokenPromiseError(msg % (arg,))
             elif op == LOAD_CONST:
-                if arg not in constants:
-                    constants.append(arg)
+                if arg not in old_constants:
+                    old_constants.add(arg)
         #  If any constants define a '_promise_fold_constant' method,
         #  let them have a crack at the bytecode as well.
-        for const in constants:
+        for const in new_constants.itervalues():
             try:
                 fold = const._promise_fold_constant
             except AttributeError:
                 pass
             else:
                 fold(func,code)
+        for const in old_constants:
+            try:
+                fold = const._promise_fold_constant
+            except AttributeError:
+                pass
+            else:
+                fold(func,code)
+        #  Re-raise a NameError if any occurred
+        if missing_names:
+            raise NameError(",".join(missing_names))
 
 
 class pure(Promise):
