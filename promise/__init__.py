@@ -1,6 +1,6 @@
 """
 
-  promise:  bytecode optimisations based on staticness assertions.
+  promise:  bytecode optimisation using staticness assertions.
 
 """
 
@@ -27,7 +27,7 @@ def new_name(name=None):
     """Generate a new unique variable name
 
     If the given name is not None, it is included in the generated name for
-    each of reference in e.g. tracebacks or bytecode inspection.
+    ease of reference in e.g. tracebacks or bytecode inspection.
     """
     if name is None:
         return "_promise_var%s" % (_ids.next(),)
@@ -37,14 +37,16 @@ def new_name(name=None):
 
 def apply_deferred_promises(func):
     """Apply any deferred promises attached to a function."""
+    #  Get the code before checking for deferred promises.
+    #  This prevents race conditions if several threads apply them at once
+    c = Code.from_code(func.func_code)
     try:
-        deferred = func._deferred_promises
+        deferred = func._promise_deferred
     except AttributeError:
         pass
     else:
-        del func._deferred_promises
-        #  Remove the bootstrapping code inserted by defer()
-        c = Code.from_code(func.func_code)
+        del func._promise_deferred
+        #  Remove the bootstrapping code inserted by Promise.defer()
         idx = c.code.index((POP_TOP,None))
         del c.code[:idx+1]
         #  Apply each promise in turn
@@ -60,7 +62,24 @@ class Promise(object):
 
     A "Promise" represents a transformation that can be applied to a function's
     bytecode, given that the user promises to only use the function in certain
-    restricted ways.
+    restricted ways.  They are intended for use as function- or class-level
+    decorators.  The following methods should be provided by subclasses:
+
+        * decorate(func):  mark the given function as having this promise
+                           applied; this may directly modify the function's
+                           bytecode or defer the modification until call time.
+
+        * apply(func,code):  actually transformt the function's bytecode
+                             to take advantages of the promised behaviour.
+
+    Subclasses may find the following method useful:
+
+        * defer(func):  defer the application of this promise until the
+                        given function is called for the first time. 
+
+        * apply_or_defer(func):  immediately apply this promise if the given
+                                 function has no deferred promises; otherwise
+                                 defer it until after the existing promises.
     """
 
     def __init__(self):
@@ -110,10 +129,10 @@ class Promise(object):
     def defer(self,func):
         """Defer the application of this promise func is first executed."""
         try:
-            deferred = func._deferred_promises
+            deferred = func._promise_deferred
         except AttributeError:
             deferred = []
-            func._deferred_promises = deferred
+            func._promise_deferred = deferred
             #  Add code to apply the promise when func is first executed.
             #  These opcodes are removed by apply_deferred_promises()
             c = Code.from_code(func.func_code)
@@ -132,7 +151,7 @@ class Promise(object):
         order in which they appear in code.
         """
         try:
-            deferred = func._deferred_promises
+            deferred = func._promise_deferred
         except AttributeError:
             code = Code.from_code(func.func_code)
             self.apply(func,code)
@@ -185,7 +204,10 @@ class constant(Promise):
     """Promise that the given names are constant
 
     This promise allows the objects referred to by the names to be stored
-    directly in the code as constants, eliminating name lookups.
+    directly in the code as constants, eliminating name lookups.  Currently
+    all constant lookups are deferred until the function is first called;
+    at some stage we may directly inline constants that can be found at
+    decoration time.
     """
 
     def __init__(self,names):
@@ -193,7 +215,7 @@ class constant(Promise):
         super(constant,self).__init__()
 
     def decorate(self,func):
-        #  Delay constant lookup until runtime.
+        #  Delay constant lookup until execution time.
         #  This lets us forward-declare constants such as other module funcs.
         self.defer(func)
 
@@ -211,7 +233,7 @@ class constant(Promise):
             try:
                 return func.func_globals[nm]
             except KeyError:
-                return func.func_globals["__builtins__"][nm]
+                return __builtins__[nm]
         except KeyError:
             raise NameError(nm)
 
@@ -255,44 +277,57 @@ class constant(Promise):
                 fold(func,code)
 
 
-class can_inline(Promise):
-    """Promise that a function can be inlined.
+class pure(Promise):
+    """Promise that a function is pure.
 
-    This involves a bodily insertion of the bytecode of the function in
-    place of its use as a constant.
+    A pure function has no side effects or internal state; it is simply
+    a mapping from input values to output values.
+
+    Currently the only optimisation this enables is inlining of constant
+    pure functions; other optimisations may be added in the future.
     """
 
     def decorate(self,func):
         c = Code.from_code(func.func_code)
         if c.varargs:
-            raise TypeError("can't currently inline functions with varargs")
+            raise TypeError("pure functions currently don't support varargs")
         if c.varkwargs:
-            raise TypeError("can't currently inline functions with varkwargs")
+            raise TypeError("pure functions currently don't support varkwds")
         func._promise_fold_constant = self._make_fold_method(func)
 
     def _make_fold_method(self,source_func):
+        """Make _promise_fold_constant method for the given pure function."""
         def fold(dest_func,dest_code):
+            """Inline the code of source_func into the given bytecode."""
+            #  Apply any deferred promises to source_func.
+            #  Since it's pure, we can simply call it to force this.
+            try:
+                source_func(*([None]*source_func.func_code.co_argcount))
+            except Exception:
+                pass
+            #  Inline the function at every callsite
             toinline = self._find_inlinable_call(source_func,dest_code)
             while toinline is not None:
                 (loadsite,callsite) = toinline
+                #  Give new names to the locals in the source bytecode
                 source_code = Code.from_code(source_func.func_code)
+                name_map = self._rename_local_vars(source_code)
                 #  Remove any setlineno ops from the source bytecode
                 new_code = [c for c in source_code.code if c[0] != SetLineno]
                 source_code.code[:] = new_code
+                #  Pop the function arguments directly from the stack.
+                #  Keyword args are currently not supported.
+                numargs = dest_code.code[callsite][1] & 0xFF
+                for i in xrange(numargs):
+                    argname = source_func.func_code.co_varnames[i]
+                    source_code.code.insert(0,(STORE_FAST,name_map[argname]))
                 #  Munge the source bytecode to leave return value on stack
                 end = Label()
                 source_code.code.append((end,None))
                 for (i,(op,arg)) in enumerate(source_code.code):
                     if op == RETURN_VALUE:
                         source_code.code[i] = (JUMP_ABSOLUTE,end)
-                #  Munge the source bytecode to directly pop args from stack
-                # TODO: support keyword arguments
-                name_map = self._rename_local_vars(source_code)
-                numargs = dest_code.code[callsite][1]
-                for i in xrange(numargs):
-                    argname = source_func.func_code.co_varnames[i]
-                    source_code.code.insert(0,(STORE_FAST,name_map[argname]))
-                #  Replace the call with the munged code
+                #  Replace the callsite with the inlined code
                 dest_code.code[callsite:callsite+1] = source_code.code
                 del dest_code.code[loadsite]
                 #  Rinse and repeat
@@ -306,19 +341,46 @@ class can_inline(Promise):
         giving the position of the LOAD_CONST on the function and the matching
         CALL_FUNCTION.  If no inlinable call is found, returns None.
         """
-        # TODO: this is wrong in so many ways...
         for (i,(op,arg)) in enumerate(code.code):
             if op == LOAD_CONST and arg == func:
-                loadsite = callsite = i
-                # TODO: use stack effects to ensure it's calling this func
-                while callsite < len(code.code) and code.code[callsite][0] != CALL_FUNCTION:
-                    callsite += 1
-                if callsite != len(code.code):
+                loadsite = i
+                callsite = self._find_callsite(loadsite,code.code)
+                if callsite is not None:
                     (op,arg) = code.code[callsite]
-                    #  Check that it doesn't use kwdargs
+                    #  Can't currently inline kwdargs
                     if arg == (arg & 0xFF):
                         return (loadsite,callsite)
         return None
+
+    def _find_callsite(self,idx,code):
+        """Find index of the opcode calling the value pushed at opcode idx.
+
+        This method funds the position of the opcode that calls a function
+        pushed onto the stack by opcode 'idx'.  If we cannot reliably find
+        such an opcode (due to weird branching etc) then None is returned.
+        """
+        try:
+            callsite = idx + 1
+            try:
+                (curop,curarg) = code[callsite]
+            except IndexError:
+                return None
+            (pop,push) = getse(curop,curarg)
+            curstack = push - pop
+            while curstack > 0 or curop != CALL_FUNCTION:
+                callsite += 1
+                try:
+                    (curop,curarg) = code[callsite]
+                except IndexError:
+                    return None
+                (pop,push) = getse(curop,curarg)
+                curstack = curstack + push - pop
+            if curstack == 0:
+                return callsite
+            else:
+                return None
+        except ValueError:
+            return None
 
     def _rename_local_vars(self,code):
         """Rename the local variables in the given code to new unique names.

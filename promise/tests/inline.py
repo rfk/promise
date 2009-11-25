@@ -2,7 +2,7 @@
 import promise
 
 
-@promise.can_inline()
+@promise.pure()
 def calculate(a,b):
     return a*100 + b*10
 

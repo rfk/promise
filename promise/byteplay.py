@@ -1,3 +1,6 @@
+#
+#  [rfk]  I've modified this slightly to work on python2.6
+#
 # byteplay - Python bytecode assembler/disassembler.
 # Copyright (C) 2006 Noam Raphael
 # Homepage: http://code.google.com/p/byteplay
