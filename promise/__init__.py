@@ -130,8 +130,8 @@ class Promise(object):
                 self.decorate(arg)
             else:
                 try:
-                    subargs = iter(arg)
-                except TypeError:
+                    subargs = arg.itervalues()
+                except (AttributeError,TypeError):
                     subargs =  (getattr(arg,nm) for nm in dir(arg))
                 for subarg in subargs:
                     if isinstance(subarg,types.FunctionType):
