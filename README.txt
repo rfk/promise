@@ -25,3 +25,7 @@ it's a simple algorithm for mapping input values to an output value:
 
 If a pure function is then used by another function as a constant, it can be
 directly inlined into the bytecode to avoid the overhead of a function call.
+
+Promise is built on Noam Raphael's fantastic "byteplay" module; since the
+official byteplay distribution doesn't support Python 2.6, a local version with
+appropriate patches is included with promise.

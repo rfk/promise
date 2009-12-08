@@ -25,10 +25,15 @@ it's a simple algorithm for mapping input values to an output value:
 
 If a pure function is then used by another function as a constant, it can be
 directly inlined into the bytecode to avoid the overhead of a function call.
+
+Promise is built on Noam Raphael's fantastic "byteplay" module; since the
+official byteplay distribution doesn't support Python 2.6, a local version with
+appropriate patches is included with promise.
 """
 
+
 __ver_major__ = 0
-__ver_minor__ = 1
+__ver_minor__ = 2
 __ver_patch__ = 0
 __ver_sub__ = ""
 __version__ = "%d.%d.%d%s" % (__ver_major__,__ver_minor__,
@@ -68,8 +73,8 @@ def new_name(name=None):
 
 def apply_deferred_promises(func):
     """Apply any deferred promises attached to a function."""
-    #  Get the code before checking for deferred promises.
-    #  This prevents race conditions if several threads apply them at once
+    #  Get the code object before checking for deferred promises.
+    #  This prevents race conditions if several threads apply them at once.
     c = Code.from_code(func.func_code)
     try:
         deferred = func._promise_deferred
@@ -100,7 +105,7 @@ class Promise(object):
                            applied; this may directly modify the function's
                            bytecode or defer the modification until call time.
 
-        * apply(func,code):  actually transformt the function's bytecode
+        * apply(func,code):  actually transform the function's bytecode
                              to take advantages of the promised behaviour.
 
     Subclasses may find the following method useful:
@@ -117,7 +122,7 @@ class Promise(object):
         pass
 
     def __call__(self,*args):
-        """Apply this promise with a function, module, dict, etc.
+        """Apply this promise to a function, module, dict, etc.
 
         Calling a promise arranges for it to be applied to any functions
         found in the given arguments.  Each argument can be a raw function,
@@ -143,8 +148,8 @@ class Promise(object):
 
         This can either directly apply the promise, or defer its application
         until the function is first executed.  The return value is ignored;
-        in practise this means that decorate() must modify the given function
-        rather than consruct a wrapper as a standard decorator might do.
+        in practice this means that decorate() must directly modify the given
+        function rather than the standard practice of creating a wrapper.
         """
         pass
 
@@ -172,14 +177,13 @@ class Promise(object):
             c.code.insert(2,(CALL_FUNCTION,1))
             c.code.insert(3,(POP_TOP,None))
             func.func_code = c.to_code()
-        deferred.append(self)
 
     def apply_or_defer(self,func):
-        """Apply this promise, or defer it is others are already deferred.
+        """Apply this promise, or defer it if others are already deferred.
 
         It's generally a good idea to use this instead of directly applying
-        a promise, since it ensured multiple promises will be applied in the
-        order in which they appear in code.
+        a promise, since it ensures that individual promises will be applied
+        in the order in which they appear in code.
         """
         try:
             deferred = func._promise_deferred
@@ -328,7 +332,7 @@ class constant(Promise):
 class pure(Promise):
     """Promise that a function is pure.
 
-    A pure function has no side effects or internal state; it is simply
+    A pure function has no side-effects or internal state; it is simply
     a mapping from input values to output values.
 
     Currently the only optimisation this enables is inlining of constant
@@ -403,7 +407,7 @@ class pure(Promise):
     def _find_callsite(self,idx,code):
         """Find index of the opcode calling the value pushed at opcode idx.
 
-        This method funds the position of the opcode that calls a function
+        This method finds the position of the opcode that calls a function
         pushed onto the stack by opcode 'idx'.  If we cannot reliably find
         such an opcode (due to weird branching etc) then None is returned.
         """
@@ -471,3 +475,4 @@ class sensible(Promise):
         constant(callable_globals).apply(func,code)
         invariant(other_globals).apply(func,code)
  
+

@@ -4,9 +4,11 @@ import timeit
 import unittest
 
 import promise
+import dis
+from promise.byteplay import *
 
 
-class TestPromise(unittest.TestCase):
+class TestPromiseTiming(unittest.TestCase):
     """Run timing tests for suitable sub-modules.
 
     This class finds all sub-modules of promise.tests and tries to load each

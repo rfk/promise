@@ -3,7 +3,15 @@ import promise
 
 items = range(100)
 
+def verify(finder):
+    """Check that the given finder function works correctly."""
+    assert finder(0)
+    assert finder(42)
+    assert not finder(101)
+    assert not finder(1001)
+
 def finder0(item):
+    """Base 'finder' fuction; is quite stupid and slow."""
     i = 0
     while i < len(items):
         if items[i] == item:
@@ -11,14 +19,9 @@ def finder0(item):
         i += 1
     return False
 
-def verify(finder):
-    assert finder(0)
-    assert finder(42)
-    assert not finder(101)
-    assert not finder(1001)
-
 @promise.invariant(["len"])
 def finder1(item):
+    """Finder function storing 'len' in local variable."""
     i = 0
     while i < len(items):
         if items[i] == item:
@@ -28,6 +31,7 @@ def finder1(item):
 
 @promise.invariant(["items","len",])
 def finder2(item):
+    """Finder function storing 'items' and 'len' in local variable."""
     i = 0
     while i < len(items):
         if items[i] == item:
@@ -35,10 +39,12 @@ def finder2(item):
         i += 1
     return False
 
-#@promise.constant(["len"])
-#@promise.invariant(["items"])
 @promise.sensible()
 def finder3(item):
+    """Finder function assumed to have sensible behaviour.
+
+    'items' is considered invariant; 'len', 'True' and 'False' are constant.
+    """
     i = 0
     while i < len(items):
         if items[i] == item:
