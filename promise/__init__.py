@@ -164,11 +164,12 @@ class Promise(object):
 
     def defer(self,func):
         """Defer the application of this promise func is first executed."""
-        try:
-            deferred = func._promise_deferred
-        except AttributeError:
-            deferred = []
-            func._promise_deferred = deferred
+        # Try to be thread-safe by using setdefault(), which is implemented
+        # in C and is therefore non-interruptible.
+        default = []
+        deferred = func.__dict__.setdefault("_promise_deferred",default)
+        deferred.append(self)
+        if deferred is default:
             #  Add code to apply the promise when func is first executed.
             #  These opcodes are removed by apply_deferred_promises()
             c = Code.from_code(func.func_code)
