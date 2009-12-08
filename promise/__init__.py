@@ -389,6 +389,15 @@ class pure(Promise):
         if c.varkwargs:
             raise TypeError("pure functions currently don't support varkwds")
         func._promise_fold_constant = self._make_fold_method(func)
+        #  Since I'm pure, my globals must all be constant
+        global_names = set()
+        for (op,arg) in Code.from_code(func.func_code).code:
+            if op == LOAD_GLOBAL:
+                global_names.add(arg)
+            elif op in (STORE_GLOBAL,DELETE_GLOBAL):
+                msg = "pure functions must not modify their globals: '%s'"
+                raise BrokenPromiseError(msg % (arg,))
+        constant(global_names).decorate(func)
 
     def _make_fold_method(self,source_func):
         """Make _promise_fold_constant method for the given pure function."""
