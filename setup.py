@@ -9,7 +9,7 @@ DESCRIPTION = "bytecode optimisation using staticness assertions."
 AUTHOR = "Ryan Kelly"
 AUTHOR_EMAIL = "ryan@rfk.id.au"
 URL = "http://github.com/rfk/promise/"
-LICENSE = "BSD"
+LICENSE = "MIT"
 KEYWORDS = "optimise optimize bytecode"
 LONG_DESC = promise.__doc__
 
