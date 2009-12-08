@@ -48,6 +48,49 @@ class TestPromiseTiming(unittest.TestCase):
             locals()["test_"+nm] = _make_test(nm)
 
 
+def test_inlining():
+    """Test that function inlining works under a variety of circumstances."""
+    @promise.pure()
+    def calc(a,b=7):
+        return 2*a + 3*b
+    items = [(1,7),(3,7),(5,7)]
+    #  Version using list comprehension produces a for-loop
+    def aggregate0(items):
+        return sum([calc(a,b) for (a,b) in items])
+    assert (LOAD_DEREF,"calc") in Code.from_code(aggregate0.func_code).code
+    assert (BINARY_ADD,None) not in Code.from_code(aggregate0.func_code).code
+    #  Version using generator comprehension produces a closure
+    def aggregate1(items):
+        return sum(calc(a,b) for (a,b) in items)
+    assert aggregate0(items) == aggregate1(items)
+    genexp = aggregate1.func_code.co_consts[1]
+    assert (LOAD_DEREF,"calc") in Code.from_code(genexp).code
+    assert (BINARY_ADD,None) not in Code.from_code(genexp).code
+    #  Pure function can be folded into the for-loop
+    @promise.constant(["calc"])
+    def aggregate2(items):
+        return sum([calc(a,b) for (a,b) in items])
+    assert aggregate0(items) == aggregate2(items)
+    assert (LOAD_DEREF,"calc") not in Code.from_code(aggregate2.func_code).code
+    assert (BINARY_ADD,None) in Code.from_code(aggregate2.func_code).code
+    #  Pure function can be pushed inside closure
+    @promise.constant(["calc"])
+    def aggregate3(items):
+        return sum(calc(a,b) for (a,b) in items)
+    assert aggregate0(items) == aggregate3(items)
+    genexp = aggregate3.func_code.co_consts[1]
+    assert (LOAD_DEREF,"calc") not in Code.from_code(genexp).code
+    assert (BINARY_ADD,None) in Code.from_code(genexp).code
+    #  Default arguments are respected
+    @promise.constant(["calc"])
+    def aggregate4(items):
+        return sum(calc(a) for (a,_) in items)
+    assert aggregate0(items) == aggregate4(items)
+    genexp = aggregate4.func_code.co_consts[1]
+    assert (LOAD_DEREF,"calc") not in Code.from_code(genexp).code
+    assert (BINARY_ADD,None) in Code.from_code(genexp).code
+    
+    
 
 def test_README():
     """Ensure that the README is in sync with the docstring.
