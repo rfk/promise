@@ -396,10 +396,11 @@ class pure(Promise):
             """Inline the code of source_func into the given bytecode."""
             #  Apply any deferred promises to source_func.
             #  Since it's pure, we can simply call it to force this.
-            try:
-                source_func(*([None]*source_func.func_code.co_argcount))
-            except Exception:
-                pass
+            if hasattr(source_func,"_promise_deferred"):
+                try:
+                    source_func(*([None]*source_func.func_code.co_argcount))
+                except Exception:
+                    pass
             #  Inline the function at every callsite
             toinline = self._find_inlinable_call(source_func,dest_code)
             while toinline is not None:
@@ -416,6 +417,14 @@ class pure(Promise):
                 for i in xrange(numargs):
                     argname = source_func.func_code.co_varnames[i]
                     source_code.code.insert(0,(STORE_FAST,name_map[argname]))
+                #  Fill in any missing args from the function defaults
+                numreqd = source_func.func_code.co_argcount
+                for i in xrange(numargs,numreqd):
+                    argname = source_func.func_code.co_varnames[i]
+                    defidx = i - numreqd + len(source_func.func_defaults)
+                    defval = source_func.func_defaults[defidx]
+                    source_code.code.insert(0,(STORE_FAST,name_map[argname]))
+                    source_code.code.insert(0,(LOAD_CONST,defval))
                 #  Munge the source bytecode to leave return value on stack
                 end = Label()
                 source_code.code.append((end,None))
@@ -483,6 +492,8 @@ class pure(Promise):
         Returns a dictionary mapping old names to new names.
         """
         name_map = {}
+        for nm in code.to_code().co_varnames:
+            name_map[nm] = new_name(nm)
         for (i,(op,arg)) in enumerate(code.code):
             if op in (LOAD_FAST,STORE_FAST,DELETE_FAST):
                 try:
