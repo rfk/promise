@@ -25,7 +25,7 @@ class TestPromiseTiming(unittest.TestCase):
         if "PROMISE_SKIP_TIMING_TESTS" in os.environ:
             num = 2
         else:
-            num = 200000
+            num = 100000
         ts = timeit.Timer("verify(%s)"%(funcnm,),setup).repeat(number=num)
         if "PROMISE_SKIP_TIMING_TESTS" not in os.environ:
             print funcnm, sorted(ts)

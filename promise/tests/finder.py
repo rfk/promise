@@ -19,19 +19,9 @@ def finder0(item):
         i += 1
     return False
 
-@promise.invariant(["len"])
+@promise.invariant(["items"])
 def finder1(item):
-    """Finder function storing 'len' in local variable."""
-    i = 0
-    while i < len(items):
-        if items[i] == item:
-            return True
-        i += 1
-    return False
-
-@promise.invariant(["items","len",])
-def finder2(item):
-    """Finder function storing 'items' and 'len' in local variable."""
+    """Finder function storing 'len' in a local variable."""
     i = 0
     while i < len(items):
         if items[i] == item:
@@ -40,7 +30,7 @@ def finder2(item):
     return False
 
 @promise.sensible()
-def finder3(item):
+def finder2(item):
     """Finder function assumed to have sensible behaviour.
 
     'items' is considered invariant; 'len', 'True' and 'False' are constant.
