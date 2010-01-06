@@ -29,7 +29,7 @@ def inline1(amax,bmax):
 @promise.constant(__builtins__)
 @promise.constant(["calculate"])
 def inline2(amax,bmax):
-    """Aggregator with calculate() inlined and builtines as constants."""
+    """Aggregator with calculate() inlined and builtins as constants."""
     return [calculate(a,b) for a in xrange(amax) for b in xrange(bmax)]
 
 

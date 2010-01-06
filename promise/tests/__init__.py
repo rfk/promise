@@ -1,5 +1,6 @@
 
 import os
+import sys
 import timeit
 import unittest
 
@@ -19,14 +20,22 @@ class TestPromiseTiming(unittest.TestCase):
     """
 
     def _timeit(self,modnm,funcnms,funcnm):
-        setup = "from promise.tests.%s import verify, %s" % (modnm,funcnms)
-        ts = timeit.Timer("verify(%s)"%(funcnm,),setup).repeat(number=100000)
-        print funcnm, sorted(ts)
+        setup = "from promise.tests.%s import verify, %s; " % (modnm,funcnms)
+        setup += "verify(%s)" % (funcnm,) # run once to apply deferred promises
+        if "PROMISE_SKIP_TIMING_TESTS" in os.environ:
+            num = 2
+        else:
+            num = 200000
+        ts = timeit.Timer("verify(%s)"%(funcnm,),setup).repeat(number=num)
+        if "PROMISE_SKIP_TIMING_TESTS" not in os.environ:
+            print funcnm, sorted(ts)
         return min(ts)
 
     def _make_test(modnm):
         """Make a timing test method from the given module name."""
         def test(self):
+            if "PROMISE_SKIP_TIMING_TESTS" not in os.environ:
+                sys.stderr.write("running timing test for '%s', please wait\n" % (modnm,))
             mod = getattr(__import__("promise.tests."+modnm).tests,modnm)
             funcs = []
             for funcnm in dir(mod):
@@ -37,7 +46,8 @@ class TestPromiseTiming(unittest.TestCase):
             t0 = self._timeit(modnm,funcnms,funcs[0])
             for funcnm in funcs[1:]:
                 t1 = self._timeit(modnm,funcnms,funcnm)
-                self.assertTrue(t0 > t1)
+                if "PROMISE_SKIP_TIMING_TESTS" not in os.environ:
+                    self.assertTrue(t0 > t1)
                 t0 = t1
         test.__name__ = "test_" + modnm
         return test
