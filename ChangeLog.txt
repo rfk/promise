@@ -1,0 +1,6 @@
+
+v0.2.1:
+
+  * add ability to skip timing tests while still running all the others,
+    by setting the environment variable PROMISE_SKIP_TIMING_TESTS.
+
