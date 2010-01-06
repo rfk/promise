@@ -24,7 +24,12 @@ it's a simple algorithm for mapping input values to an output value:
         return 2*a*a + 3*b + 7
 
 If a pure function is then used by another function as a constant, it can be
-directly inlined into the bytecode to avoid the overhead of a function call.
+directly inlined into the bytecode to avoid the overhead of a function call:
+
+    @promise.constant(("calculate",))
+    def aggregate(pairs):
+        #  calculate() is a pure constant, so it will be inlined here.
+        return sum(calculate(a,b) for (a,b) in pairs)
 
 The currently available promises are:
 
