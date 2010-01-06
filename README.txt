@@ -26,6 +26,24 @@ it's a simple algorithm for mapping input values to an output value:
 If a pure function is then used by another function as a constant, it can be
 directly inlined into the bytecode to avoid the overhead of a function call.
 
+The currently available promises are:
+
+    * invariant(names):  promise that variables having the given names will
+                         not change value during execution of the function.
+
+    * constant(names):   promise that variables having the given names will
+                         always refer to the same object, across all calls
+                         to the function.
+
+    * pure():   promise that the function is a transparent mapping from inputs
+                to outputs; this opens up the possibility of inling it directly
+                into other functions.
+
+    * sensible():   promise that the function is "sensibly behaved".  All
+                    builtins and module-level functions are considered
+                    constant; all other module-level names are considered
+                    invariant.
+
 Promise is built on Noam Raphael's fantastic "byteplay" module; since the
 official byteplay distribution doesn't support Python 2.6, a local version with
 appropriate patches is included with promise.

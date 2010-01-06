@@ -26,6 +26,24 @@ it's a simple algorithm for mapping input values to an output value:
 If a pure function is then used by another function as a constant, it can be
 directly inlined into the bytecode to avoid the overhead of a function call.
 
+The currently available promises are:
+
+    * invariant(names):  promise that variables having the given names will
+                         not change value during execution of the function.
+
+    * constant(names):   promise that variables having the given names will
+                         always refer to the same object, across all calls
+                         to the function.
+
+    * pure():   promise that the function is a transparent mapping from inputs
+                to outputs; this opens up the possibility of inling it directly
+                into other functions.
+
+    * sensible():   promise that the function is "sensibly behaved".  All
+                    builtins and module-level functions are considered
+                    constant; all other module-level names are considered
+                    invariant.
+
 Promise is built on Noam Raphael's fantastic "byteplay" module; since the
 official byteplay distribution doesn't support Python 2.6, a local version with
 appropriate patches is included with promise.
@@ -34,7 +52,7 @@ appropriate patches is included with promise.
 
 __ver_major__ = 0
 __ver_minor__ = 2
-__ver_patch__ = 0
+__ver_patch__ = 1
 __ver_sub__ = ""
 __version__ = "%d.%d.%d%s" % (__ver_major__,__ver_minor__,
                               __ver_patch__,__ver_sub__)
@@ -200,7 +218,21 @@ class invariant(Promise):
     """Promise that the given names are invariant during the function call.
 
     This promise allows the names to be loaded once, at the beginning of the
-    function, and accessed through local variables from there on out.
+    function, and accessed through local variables from there on out.  Instead
+    of doing this:
+
+        myvar = SomeGlobalObject()
+        def myfunc():
+            l_myvar = myvar  # store locally for faster access
+            ...do stuff with l_myvar...
+
+    You can now do this:
+
+        myvar = SomeGlobalObject()
+        @promise.invariant(("myvar",))
+        def myfunc():
+            ...do stuff directly with myvar...
+
     """
 
     def __init__(self,names):
@@ -243,6 +275,21 @@ class constant(Promise):
     directly in the code as constants, eliminating name lookups.  We try
     to resolve all constants at decoration time, but any that are missing
     will be deferred until the function first executes.
+
+    Instead of doing this:
+
+        # this trick makes range() a local constant
+        def yield_lots_of_ranges(range=range):
+            for i in range(10):
+                yield range(i)
+
+    You can now do this:
+
+        @promise.constant(("range",))
+        def yield_lots_of_ranges()
+            for i in range(10):
+                yield range(i)
+
     """
 
     def __init__(self,names,exclude=[]):
@@ -379,7 +426,18 @@ class pure(Promise):
     a mapping from input values to output values.
 
     Currently the only optimisation this enables is inlining of constant
-    pure functions; other optimisations may be added in the future.
+    pure functions; other optimisations may be added in the future.  For
+    example, in this code the calculate() function will be inlined as if
+    it were a macro:
+
+        @promise.pure()
+        def calculate(a,b):
+            reutrn a*a + 3*b + 7
+
+        @promise.constant(("calculate",))
+        def aggregate(pairs):
+            return sum(calculate(a,b) for (a,b) in pairs)
+
     """
 
     def decorate(self,func):
@@ -521,6 +579,8 @@ class sensible(Promise):
         * all global functions are constant
         * all other globals are invariant
 
+    The semantics of this promise will probably change as more types of promise
+    are added to the module.
     """
 
     def decorate(self,func):
