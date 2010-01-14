@@ -1,0 +1,12 @@
+
+ * richer name matching
+      - dotted names e.g. promise.invariant("f.read")
+      - regexp matching e.g. promise.constant("/[A-Z]+/")
+      - scope qualifiers e.g. promise.constant("global:/[A-Z]+/")
+
+ * final methods
+      - automatic inlining into other methods of the same class
+
+ * type signature promises
+      - inlining of transparent final methods
+
