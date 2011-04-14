@@ -49,6 +49,6 @@ The currently available promises are:
                     constant; all other module-level names are considered
                     invariant.
 
-Promise is built on Noam Raphael's fantastic "byteplay" module; since the
-official byteplay distribution doesn't support Python 2.6, a local version with
-appropriate patches is included with promise.
+Promise is built on Noam Raphael's fantastic "byteplay" module.  It used be
+be bundled as part of promise because it needed some patches to work with
+newer versions of Python; now it's just bundled for your convenience.
