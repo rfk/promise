@@ -1,6 +1,14 @@
 
+Status: Unmaintained
+====================
 
-  promise:  bytecode optimisation using staticness assertions.
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+
+I am [no longer actively maintaining this project](https://rfk.id.au/blog/entry/archiving-open-source-projects/).
+
+
+promise:  bytecode optimisation using staticness assertions.
+============================================================
 
 This is a module for applying some simple optimisations to function bytecode.
 By promising that a function doesn't do certain things at run-time, it's
